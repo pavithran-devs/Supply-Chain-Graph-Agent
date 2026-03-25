@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - GROQ_KEY=${GROQ_KEY}
+      - PORT=8000
+    volumes:
+      - ./supply_chain.db:/app/supply_chain.db
+      # If you want to change data on the fly, mount the CSV too
+      - ./graph_edges.csv:/app/graph_edges.csv
+    restart: unless-stopped

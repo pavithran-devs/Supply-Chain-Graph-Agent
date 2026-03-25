@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dodge AI | Supply Chain Mapping</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        background: '#FAFAFA',
+                        surface: '#FFFFFF',
+                        primary: '#09090B',
+                        secondary: '#71717A',
+                        accentBlue: '#2563EB',
+                        accentGreen: '#22C55E',
+                        accentGray: '#64748B',
+                        borderLight: '#E4E4E7',
+                        chatUserBg: '#18181B',
+                        chatAiBg: '#F4F4F5'
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    boxShadow: { 'soft': '0 2px 8px rgba(0,0,0,0.05)', 'float': '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }
+                }
+            }
+        }
+    </script>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FAFAFA;
+            color: #09090B;
+            overflow: hidden;
+        }
+
+        #graph-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            outline: none;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid #E4E4E7;
+            border-radius: 12px;
+        }
+
+        .chat-input-area {
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.02);
+        }
+
+        .hidden-fade {
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+        }
+
+        .visible-fade {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+
+<body class="h-screen w-screen flex flex-row">
+
+    <!-- LEFT: GRAPH SECTION (70%) -->
+    <main class="relative w-[70%] h-full overflow-hidden bg-background border-r border-borderLight">
+        <!-- Breadcrumb Navigation -->
+        <div class="absolute top-6 left-6 z-10 glass-panel px-5 py-3 flex items-center space-x-3 text-sm shadow-soft">
+            <span class="text-secondary font-medium">Mapping</span>
+            <span class="text-secondary opacity-40">/</span>
+            <span class="font-bold text-primary tracking-tight">Order to Cash</span>
+        </div>
+
+        <!-- Floating Controls -->
+        <div class="absolute top-6 right-6 z-10 glass-panel p-2 flex items-center shadow-soft">
+            <button id="btn-fit"
+                class="px-4 py-2 hover:bg-gray-100 rounded-md text-xs font-bold text-secondary transition-all">Fit
+                View</button>
+            <div class="w-px h-4 bg-borderLight mx-2"></div>
+            <button id="btn-physics"
+                class="px-4 py-2 hover:bg-gray-100 rounded-md text-xs font-bold text-secondary transition-all">Fix
+                Nodes</button>
+        </div>
+
+        <div id="graph-container"></div>
+
+        <div id="loading" class="absolute inset-0 z-20 flex items-center justify-center bg-white/80 backdrop-blur-md">
+            <div class="flex flex-col items-center">
+                <div class="w-10 h-10 rounded-full border-[3px] border-primary border-t-transparent animate-spin mb-4">
+                </div>
+                <span class="text-xs font-bold text-primary uppercase tracking-[0.2em] opacity-40">Synchronizing
+                    Data</span>
+            </div>
+        </div>
+
+        <!-- Journal Entry Popup -->
+        <div id="node-popup" class="absolute z-30 hidden-fade glass-panel p-6 min-w-[300px] shadow-float mt-4 ml-4">
+            <div class="flex justify-between items-start mb-6 pb-4 border-b border-gray-100">
+                <div class="flex flex-col">
+                    <span
+                        class="text-[10px] font-bold uppercase tracking-[0.15em] text-secondary opacity-50 mb-1">Journal
+                        Entry</span>
+                    <h3 class="font-bold text-lg tracking-tight text-primary leading-tight" id="popup-title">Node
+                        Details</h3>
+                </div>
+                <button id="close-popup"
+                    class="text-secondary hover:text-primary transition-colors bg-gray-50 p-1.5 rounded-full">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                            d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="space-y-5" id="popup-content">
+                <!-- Content injected via JS -->
+            </div>
+        </div>
+    </main>
+
+    <!-- RIGHT: CHAT PANEL (30%) -->
+    <aside class="w-[30%] h-full bg-white flex flex-col z-20 shadow-2xl">
+        <!-- Chat Header -->
+        <div class="px-8 py-8 border-b border-borderLight bg-white/80 backdrop-blur-md">
+            <div
+                class="flex items-center space-x-2 text-[10px] font-bold tracking-[0.2em] text-secondary uppercase opacity-50 mb-1.5">
+                <span>Forward Deployed Engine</span>
+            </div>
+            <h2 class="text-2xl font-black tracking-tighter text-primary flex items-center space-x-2">
+                <span>Dodge AI</span>
+                <span class="w-2 h-2 rounded-full bg-blue-600 mt-2 animate-pulse"></span>
+            </h2>
+            <div class="flex flex-wrap gap-2 mt-4" id="active-context-area">
+                <!-- Entities in memory -->
+            </div>
+        </div>
+
+        <!-- Chat history -->
+        <div id="chat-history" class="flex-1 overflow-y-auto px-8 py-8 flex flex-col gap-8 bg-gray-50/30">
+            <div class="flex flex-col items-start max-w-[95%]">
+                <div
+                    class="bg-chatAiBg border border-gray-100 text-primary px-6 py-5 rounded-2xl rounded-tl-sm text-[14.5px] leading-relaxed shadow-soft font-medium">
+                    Analyze your supply chain flow. Click any node to trigger a full O2C trace automatically.
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat input area -->
+        <div class="p-6 border-t border-borderLight bg-white chat-input-area">
+            <form id="chat-form"
+                class="relative flex items-end bg-gray-50 border border-gray-200 rounded-2xl p-2 transition-all focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/10">
+                <textarea id="chat-input" rows="1"
+                    class="w-full bg-transparent text-[15px] px-4 py-3 focus:outline-none resize-none min-h-[50px] max-h-[200px] text-primary font-medium"
+                    placeholder="Analyze flow..."></textarea>
+                <button type="submit"
+                    class="p-3 bg-primary text-white rounded-xl hover:bg-black transition-all active:scale-95 shadow-md">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                            d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                    </svg>
+                </button>
+            </form>
+            <div class="mt-4 text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest opacity-60">
+                Engine Powered Traceability</div>
+        </div>
+    </aside>
+
+    <script>
+        const CATEGORY_COLORS = {
+            Transactional: '#2563EB', // Blue (Orders, Invoices)
+            Fulfillment: '#22C55E',   // Green (Deliveries, Payments)
+            Metadata: '#64748B',      // Gray (Customers, Addresses, Products)
+            Other: '#94A3B8'
+        };
+
+        const NODE_TYPE_MAP = {
+            'Order': 'Transactional', 'Invoice': 'Transactional',
+            'Delivery': 'Fulfillment', 'Payment': 'Fulfillment',
+            'Customer': 'Metadata', 'Address': 'Metadata', 'Product': 'Metadata', 'CustomerGroup': 'Metadata'
+        };
+
+        let network, graphNodes, graphEdges, rawDataStore;
+        let activeEntities = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const loading = document.getElementById('loading');
+            try {
+                const response = await fetch('/graph-data');
+                rawDataStore = await response.json();
+
+                graphNodes = new vis.DataSet(rawDataStore.nodes.map(n => {
+                    const category = NODE_TYPE_MAP[n.group] || 'Other';
+                    return {
+                        id: n.id, label: n.label, group: n.group,
+                        color: { background: CATEGORY_COLORS[category], border: '#FFFFFF', highlight: { background: '#000', border: CATEGORY_COLORS[category] } },
+                        font: { size: 10, face: 'Inter', color: '#64748B', weight: 'bold' },
+                        shape: 'dot', size: (n.group === 'Order' || n.group === 'Customer') ? 24 : 18, borderWidth: 3
+                    };
+                }));
+
+                graphEdges = new vis.DataSet(rawDataStore.edges.map((e, idx) => ({
+                    id: `e${idx}`, from: e.from, to: e.to, label: e.label,
+                    font: { size: 8, align: 'middle', color: '#94A3B8', face: 'Inter', weight: 'bold' },
+                    arrows: { to: { enabled: true, scaleFactor: 0.4 } },
+                    color: { color: '#E2E8F0', highlight: '#94A3B8' }, width: 1.5, smooth: { type: 'curvedCW', roundness: 0.2 }
+                })));
+
+                network = new vis.Network(document.getElementById('graph-container'), { nodes: graphNodes, edges: graphEdges }, {
+                    physics: { stabilization: true, barnesHut: { gravitationalConstant: -3000, springLength: 200 } },
+                    interaction: { hover: true, tooltipDelay: 200 }
+                });
+
+                network.on("stabilizationIterationsDone", () => {
+                    loading.classList.add('opacity-0');
+                    setTimeout(() => loading.style.display = 'none', 500);
+                });
+
+                // VIS.JS TO AI INTERACTION (Contextual Clicking)
+                network.on('click', (params) => {
+                    if (params.nodes.length > 0) {
+                        const nodeId = params.nodes[0];
+                        const input = document.getElementById('chat-input');
+                        input.value = `Dodge AI, find and summarize the end-to-end trace from the Customer through to the Payment node for the clicked entity: ${nodeId}`;
+                        document.getElementById('chat-form').dispatchEvent(new Event('submit'));
+                    }
+                });
+
+                network.on("hoverNode", p => showNodePopup(rawDataStore.nodes.find(n => n.id === p.node), p.pointer.DOM));
+                network.on("blurNode", hideNodePopup);
+
+                document.getElementById('btn-fit').addEventListener('click', () => network.fit({ animation: true }));
+                let physicsOn = true;
+                const btnP = document.getElementById('btn-physics');
+                btnP.addEventListener('click', () => {
+                    physicsOn = !physicsOn;
+                    network.setOptions({ physics: { enabled: physicsOn } });
+                    btnP.innerText = physicsOn ? 'Fix Nodes' : 'Float Nodes';
+                    btnP.classList.toggle('text-blue-600', !physicsOn);
+                });
+
+            } catch (error) { console.error(error); }
+        });
+
+        function showNodePopup(node, pos) {
+            if (!node) return;
+            const popup = document.getElementById('node-popup');
+            document.getElementById('popup-title').innerText = node.id.replace(/_/g, ' ');
+            document.getElementById('popup-content').innerHTML = `
+                <div class="flex justify-between items-center py-3 border-b border-gray-50"><span class="text-[11px] font-bold uppercase tracking-widest text-secondary opacity-50">Collection</span><span class="text-xs font-black text-primary px-3 py-1 bg-gray-100 rounded-lg">${node.group}</span></div>
+                <div class="flex justify-between items-center py-3 border-b border-gray-50"><span class="text-[11px] font-bold uppercase tracking-widest text-secondary opacity-50">Status</span><span class="text-xs font-bold text-blue-600 flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-md"></span>Active in Lake</span></div>
+                 <div class="flex flex-col gap-2 pt-1"><span class="text-[11px] font-bold uppercase tracking-widest text-secondary opacity-50">Entity ID</span><span class="text-[13px] font-mono font-bold text-primary bg-gray-50 p-3 rounded-xl break-words select-all">${node.id}</span></div>
+            `;
+            popup.style.left = (pos.x + 25) + 'px'; popup.style.top = (pos.y - 15) + 'px';
+            popup.classList.remove('hidden-fade'); popup.classList.add('visible-fade');
+        }
+
+        function hideNodePopup() { document.getElementById('node-popup').classList.replace('visible-fade', 'hidden-fade'); }
+
+        async function handleAIInteraction(data) {
+            // AI TO VIS.JS INTERACTION (Auto-Focus/Reflection)
+            if (data.active_entities) {
+                activeEntities = data.active_entities;
+                updateContextBadges();
+                updateGraphGlow();
+            }
+            if (data.focus_id) {
+                network.selectNodes([data.focus_id]);
+                network.focus(data.focus_id, { scale: 1.3, animation: { duration: 1200, easingFunction: 'easeInOutQuad' } });
+                setTimeout(() => {
+                    const canvasPos = network.getPositions([data.focus_id])[data.focus_id];
+                    if (canvasPos) showNodePopup(rawDataStore.nodes.find(n => n.id === data.focus_id), network.canvasToDOM(canvasPos));
+                }, 1300);
+            }
+            if (data.path_ids) highlightTracePath(data.path_ids);
+        }
+
+        function updateContextBadges() {
+            const area = document.getElementById('active-context-area');
+            area.innerHTML = '';
+            activeEntities.forEach(id => {
+                const b = document.createElement('div');
+                b.className = 'bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1.5 rounded-full text-[10px] font-black tracking-tight flex items-center gap-2 animate-in fade-in zoom-in duration-300 shadow-sm';
+                b.innerHTML = `<span class="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>${id}`;
+                area.appendChild(b);
+            });
+        }
+
+        function updateGraphGlow() {
+            rawDataStore.nodes.forEach(n => {
+                const isActive = activeEntities.includes(n.id);
+                graphNodes.update({ id: n.id, shadow: isActive ? { enabled: true, color: 'rgba(37,99,235,0.4)', size: 15, x: 0, y: 0 } : { enabled: false } });
+            });
+        }
+
+        function highlightTracePath(ids) {
+            ids.forEach(id => { try { graphNodes.update({ id: id, borderWidth: 8, color: { border: '#18181B' } }); } catch (e) { } });
+            setTimeout(() => { ids.forEach(id => { try { graphNodes.update({ id: id, borderWidth: 3, color: { border: '#FFFFFF' } }); } catch (e) { } }); }, 4000);
+        }
+
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const chatHistory = document.getElementById('chat-history');
+
+        function appendMsg(text, sender) {
+            const container = document.createElement('div');
+            container.className = `flex flex-col items-${sender === 'user' ? 'end' : 'start'} max-w-[95%] ${sender === 'user' ? 'self-end' : ''} animate-in slide-in-from-bottom-2 duration-300`;
+            const b = document.createElement('div');
+            b.className = `px-6 py-4 rounded-2xl text-[14.5px] leading-relaxed shadow-soft font-medium ${sender === 'user' ? 'bg-primary text-white rounded-br-sm' : 'bg-chatAiBg border border-gray-100 text-primary rounded-bl-sm'}`;
+            b.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-extrabold">$1</strong>').replace(/\n/g, '<br>');
+            container.appendChild(b);
+            chatHistory.appendChild(container);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault(); const q = chatInput.value.trim(); if (!q) return;
+            appendMsg(q, 'user'); chatInput.value = '';
+            const t = document.createElement('div'); t.className = 'bg-gray-100 px-5 py-4 rounded-xl w-fit flex gap-1.5 animate-pulse'; t.innerHTML = '<div class="w-1.5 h-1.5 bg-gray-400 rounded-full"></div><div class="w-1.5 h-1.5 bg-gray-400 rounded-full"></div>';
+            chatHistory.appendChild(t); chatHistory.scrollTop = chatHistory.scrollHeight;
+            try {
+                const response = await fetch('/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) });
+                const data = await response.json(); t.remove();
+                if (response.ok) { appendMsg(data.answer, 'bot'); handleAIInteraction(data); }
+            } catch (error) { t.remove(); }
+        });
+
+        chatInput.addEventListener('input', function () { this.style.height = '50px'; this.style.height = (this.scrollHeight) + 'px'; });
+    </script>
+</body>
+
+</html>

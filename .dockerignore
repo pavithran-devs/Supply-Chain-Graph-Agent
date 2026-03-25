@@ -1,0 +1,13 @@
+.git
+.venv
+venv
+__pycache__
+.env
+frontend/node_modules
+frontend/dist
+*.db
+*.csv
+# However, you probably want the initial CSV or DB in the container if you don't use volumes.
+# But for the initial run, maybe we should include them or mount them.
+# For now, let's include the CSV so it can initialize.
+!graph_edges.csv

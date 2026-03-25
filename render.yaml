@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: supply-chain-agent
+    env: docker
+    plan: free
+    region: oregon
+    envVars:
+      - key: GROQ_KEY
+        sync: false # Set this in the dashboard
+      - key: PORT
+        value: 8000
+    autoDeploy: true
